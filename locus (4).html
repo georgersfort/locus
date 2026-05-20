@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Locus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=Outfit:wght@300;400;500&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --ink: #0F0E0C;
+  --cream: #F7F3EC;
+  --gold: #C8A45A;
+  --gold-pale: rgba(200,164,90,0.18);
+  --white: #FFFFFF;
+  --w90: rgba(255,255,255,0.9);
+  --w60: rgba(255,255,255,0.6);
+  --w20: rgba(255,255,255,0.2);
+  --w10: rgba(255,255,255,0.1);
+  --sheet-bg: rgba(10,9,8,0.93);
+  --sheet-border: rgba(255,255,255,0.08);
+}
+html, body { height: 100%; width: 100%; overflow: hidden; background: #0a0908; font-family: 'Outfit', sans-serif; }
+
+/* ── Street View full bleed ── */
+#streetView { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+.sv-vignette {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(10,9,8,0.6) 0%, transparent 30%),
+              linear-gradient(to top, rgba(10,9,8,0.85) 0%, transparent 55%);
+}
+
+/* ── Empty / splash state ── */
+#splash {
+  position: fixed; inset: 0; z-index: 2;
+  background: radial-gradient(ellipse at 40% 55%, #1e1c18 0%, #0a0908 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px;
+  transition: opacity 0.5s;
+}
+#splash.hidden { opacity: 0; pointer-events: none; }
+.orb {
+  width: 280px; height: 280px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 38%, #2a2620 0%, #0f0e0c 70%);
+  border: 1px solid rgba(200,164,90,0.18);
+  box-shadow: 0 0 80px rgba(200,164,90,0.07), inset 0 0 60px rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+}
+.orb-text {
+  font-family: 'Playfair Display', serif; font-style: italic; font-size: 15px;
+  color: rgba(200,164,90,0.55); text-align: center; line-height: 1.7; max-width: 170px;
+}
+.splash-notice {
+  font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.3); text-align: center; line-height: 1.8;
+}
+.splash-notice b { color: rgba(200,164,90,0.7); font-weight: 400; }
+
+/* ── Top bar ── */
+.top-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  padding: 16px 20px; display: flex; align-items: center; gap: 10px;
+}
+.logo-mark {
+  font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 400;
+  color: var(--white); letter-spacing: 0.06em; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+  text-shadow: 0 1px 10px rgba(0,0,0,0.7);
+}
+.logo-pip { width: 5px; height: 5px; background: var(--gold); border-radius: 50%; flex-shrink: 0; }
+.search-pill { flex: 1; position: relative; max-width: 480px; }
+#searchInput {
+  width: 100%; padding: 11px 46px 11px 16px;
+  background: rgba(10,9,8,0.78); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--w20); border-radius: 100px;
+  color: var(--white); font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 300;
+  outline: none; transition: border-color 0.2s, box-shadow 0.2s; -webkit-appearance: none;
+}
+#searchInput::placeholder { color: var(--w60); }
+#searchInput:focus { border-color: rgba(200,164,90,0.6); box-shadow: 0 0 0 3px rgba(200,164,90,0.1); }
+.search-go {
+  position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; border-radius: 50%; background: var(--gold); border: none;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--ink); transition: all 0.2s; flex-shrink: 0;
+}
+.search-go:hover { background: #d4b06a; transform: translateY(-50%) scale(1.05); }
+.top-btn {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(10,9,8,0.75); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--w20); color: var(--white); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;
+}
+.top-btn:hover { border-color: rgba(200,164,90,0.5); }
+.top-btn.active { border-color: var(--gold); background: var(--gold-pale); color: var(--gold); }
+
+/* ── Bottom pill (length + generate) ── */
+.story-trigger {
+  position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+  z-index: 100; transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+}
+.story-trigger.hidden { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(20px); }
+.trigger-pill {
+  display: flex; align-items: center;
+  background: rgba(10,9,8,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--w20); border-radius: 100px; overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+}
+.length-tabs { display: flex; gap: 2px; padding: 5px 5px 5px 12px; align-items: center; }
+.len-tab {
+  padding: 5px 10px; border-radius: 100px; border: none; background: transparent;
+  color: var(--w60); font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.06em; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.len-tab.active { background: rgba(200,164,90,0.18); color: var(--gold); }
+.len-tab:not(.active):hover { color: var(--white); }
+.tab-div { width: 1px; height: 24px; background: var(--w20); margin: 0 2px; flex-shrink: 0; }
+#generateBtn {
+  margin: 5px; padding: 9px 20px; border-radius: 100px;
+  background: var(--white); border: none; color: var(--ink);
+  font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 7px; white-space: nowrap;
+}
+#generateBtn:hover:not(:disabled) { background: var(--cream); }
+#generateBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+#generateBtn.loading { background: rgba(255,255,255,0.1); color: var(--w60); }
+.btn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
+#generateBtn.loading .btn-dot { animation: pdot 1s ease-in-out infinite; }
+@keyframes pdot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.6)} }
+
+/* ── Bottom sheet ── */
+.sheet-overlay { position: fixed; inset: 0; z-index: 200; pointer-events: none; }
+.sheet-overlay.open { pointer-events: all; }
+.sheet {
+  position: absolute; bottom: 0; left: 0; right: 0; max-height: 78vh;
+  background: var(--sheet-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid var(--sheet-border); border-radius: 20px 20px 0 0;
+  display: flex; flex-direction: column;
+  transform: translateY(100%); transition: transform 0.45s cubic-bezier(0.32,0.72,0,1);
+  box-shadow: 0 -20px 60px rgba(0,0,0,0.6);
+}
+.sheet-overlay.open .sheet { transform: translateY(0); }
+.sheet-handle { width: 36px; height: 4px; background: var(--w20); border-radius: 2px; margin: 12px auto 0; flex-shrink: 0; }
+.sheet-header {
+  padding: 16px 24px 14px; border-bottom: 1px solid var(--sheet-border);
+  flex-shrink: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+}
+.sheet-place-name { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--white); line-height: 1.25; margin-bottom: 3px; }
+.sheet-coords { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--w60); letter-spacing: 0.08em; }
+.sheet-close {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--w10); border: none;
+  color: var(--w60); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all 0.2s; margin-top: 2px;
+}
+.sheet-close:hover { background: var(--w20); color: var(--white); }
+
+/* Audio bar */
+.audio-bar { padding: 12px 24px; border-bottom: 1px solid var(--sheet-border); flex-shrink: 0; display: flex; align-items: center; gap: 14px; }
+.play-btn {
+  width: 40px; height: 40px; border-radius: 50%; background: var(--white); border: none;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all 0.2s; color: var(--ink);
+}
+.play-btn:hover { transform: scale(1.06); background: var(--cream); }
+.play-btn .icon-pause { display: none; }
+.play-btn.playing .icon-play { display: none; }
+.play-btn.playing .icon-pause { display: block; }
+.audio-prog-wrap { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.prog-track { height: 2px; background: var(--w20); border-radius: 1px; cursor: pointer; position: relative; }
+.prog-fill { height: 100%; background: var(--gold); border-radius: 1px; width: 0%; transition: width 0.5s linear; }
+.audio-time { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--w60); display: flex; justify-content: space-between; }
+
+/* Sheet body */
+.sheet-body { flex: 1; overflow-y: auto; padding: 24px 24px 48px; scroll-behavior: smooth; }
+.sheet-body::-webkit-scrollbar { width: 3px; }
+.sheet-body::-webkit-scrollbar-thumb { background: var(--w20); border-radius: 2px; }
+.story-prose { font-family: 'Playfair Display', serif; font-size: 16px; line-height: 1.95; color: rgba(247,243,236,0.82); }
+.story-prose p { margin-bottom: 1.2em; }
+.story-prose p:first-child::first-letter { font-size: 54px; line-height: 0.78; float: left; margin-right: 8px; margin-top: 8px; color: var(--gold); font-style: italic; }
+.story-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; gap: 16px; }
+.loading-ring { width: 36px; height: 36px; border: 1.5px solid var(--w20); border-top-color: var(--gold); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-family: 'Playfair Display', serif; font-style: italic; font-size: 15px; color: var(--w60); }
+.story-error { padding: 20px; background: rgba(192,57,43,0.1); border: 1px solid rgba(192,57,43,0.3); border-radius: 10px; color: #e88c82; font-size: 14px; line-height: 1.6; }
+
+/* Mini player */
+.mini-player {
+  position: fixed; bottom: 104px; left: 50%; transform: translateX(-50%);
+  z-index: 99; background: rgba(10,9,8,0.9); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--w20); border-radius: 100px; padding: 8px 16px 8px 8px;
+  display: flex; align-items: center; gap: 10px;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5); white-space: nowrap;
+}
+.mini-player.visible { opacity: 1; pointer-events: all; }
+.mini-play { width: 28px; height: 28px; border-radius: 50%; background: var(--white); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--ink); transition: transform 0.2s; }
+.mini-play:hover { transform: scale(1.08); }
+.mini-play .icon-pause { display: none; }
+.mini-play.playing .icon-play { display: none; }
+.mini-play.playing .icon-pause { display: block; }
+.mini-title { font-size: 12px; color: var(--w90); max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.mini-prog { width: 80px; height: 2px; background: var(--w20); border-radius: 1px; overflow: hidden; }
+.mini-prog-fill { height: 100%; background: var(--gold); border-radius: 1px; width: 0%; transition: width 0.5s linear; }
+
+/* Pin mode hint */
+.cursor-hint {
+  position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%);
+  z-index: 99; background: rgba(200,164,90,0.12); border: 1px solid rgba(200,164,90,0.4);
+  border-radius: 100px; padding: 8px 18px;
+  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--gold); letter-spacing: 0.06em;
+  pointer-events: none; opacity: 0; transition: opacity 0.3s;
+}
+.cursor-hint.visible { opacity: 1; }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: #1a1814; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;
+  padding: 32px; width: 440px; max-width: 92vw;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.8);
+  transform: translateY(10px) scale(0.98); transition: transform 0.25s;
+}
+.modal-overlay.open .modal { transform: translateY(0) scale(1); }
+.modal-title { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--white); margin-bottom: 6px; }
+.modal-sub { font-size: 13px; color: var(--w60); line-height: 1.6; margin-bottom: 24px; }
+.field { margin-bottom: 16px; }
+.field label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--w60); display: block; margin-bottom: 7px; }
+.field input { width: 100%; padding: 12px 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; color: var(--white); font-family: 'DM Mono', monospace; font-size: 12px; outline: none; transition: border-color 0.2s; }
+.field input:focus { border-color: rgba(200,164,90,0.6); }
+.field input::placeholder { color: rgba(255,255,255,0.22); }
+.field-hint { font-size: 11px; color: rgba(200,164,90,0.6); margin-top: 5px; line-height: 1.5; }
+.modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+.btn-save { flex: 1; padding: 12px; background: var(--white); color: var(--ink); border: none; border-radius: 8px; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+.btn-save:hover { background: var(--cream); }
+.btn-cancel { padding: 12px 20px; background: transparent; color: var(--w60); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; font-family: 'Outfit', sans-serif; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+.btn-cancel:hover { border-color: rgba(255,255,255,0.25); color: var(--white); }
+</style>
+</head>
+<body>
+
+<!-- Splash / empty state -->
+<div id="splash">
+  <div class="orb">
+    <div class="orb-text" id="orbText">Search a place to begin your journey</div>
+  </div>
+  <div class="splash-notice" id="splashNotice"></div>
+</div>
+
+<!-- Street View -->
+<div id="streetView"></div>
+<div class="sv-vignette"></div>
+
+<!-- Top bar -->
+<div class="top-bar">
+  <div class="logo-mark"><div class="logo-pip"></div>Locus</div>
+  <div class="search-pill">
+    <input type="text" id="searchInput" placeholder="Search any address or landmark…" autocomplete="off" spellcheck="false">
+    <button class="search-go" onclick="triggerSearch()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    </button>
+  </div>
+  <button class="top-btn" id="locBtn" onclick="useMyLocation()" title="My location">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+  </button>
+  <button class="top-btn" id="pinBtn" onclick="togglePinMode()" title="Drop a pin">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+  </button>
+  <button class="top-btn" onclick="openModal()" title="API Keys">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+  </button>
+</div>
+
+<!-- Pin hint -->
+<div class="cursor-hint" id="cursorHint">Click anywhere in Street View to place a pin</div>
+
+<!-- Bottom pill -->
+<div class="story-trigger" id="storyTrigger">
+  <div class="trigger-pill">
+    <div class="length-tabs">
+      <button class="len-tab" data-len="short" onclick="setLength('short')">Short</button>
+      <button class="len-tab active" data-len="medium" onclick="setLength('medium')">Medium</button>
+      <button class="len-tab" data-len="long" onclick="setLength('long')">Long</button>
+    </div>
+    <div class="tab-div"></div>
+    <button id="generateBtn" onclick="generateStory()" disabled>
+      <div class="btn-dot"></div>
+      <span id="btnLabel">Select a place</span>
+    </button>
+  </div>
+</div>
+
+<!-- Mini player -->
+<div class="mini-player" id="miniPlayer">
+  <button class="mini-play" id="miniPlayBtn" onclick="toggleSpeech()">
+    <svg class="icon-play" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    <svg class="icon-pause" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+  </button>
+  <span class="mini-title" id="miniTitle">—</span>
+  <div class="mini-prog"><div class="mini-prog-fill" id="miniProgFill"></div></div>
+</div>
+
+<!-- Bottom sheet -->
+<div class="sheet-overlay" id="sheetOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div style="flex:1;min-width:0">
+        <div class="sheet-place-name" id="sheetName">—</div>
+        <div class="sheet-coords" id="sheetCoords"></div>
+      </div>
+      <button class="sheet-close" onclick="closeSheet()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="audio-bar">
+      <button class="play-btn" id="playBtn" onclick="toggleSpeech()">
+        <svg class="icon-play" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <svg class="icon-pause" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <div class="audio-prog-wrap">
+        <div class="prog-track" id="progTrack" onclick="seekSpeech(event, this)">
+          <div class="prog-fill" id="progFill"></div>
+        </div>
+        <div class="audio-time"><span id="timeElapsed">0:00</span><span id="timeDur">—</span></div>
+      </div>
+    </div>
+    <div class="sheet-body" id="sheetBody"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title">API Keys</div>
+    <div class="modal-sub">Keys are saved in your browser only — never sent anywhere except their own APIs.</div>
+    <div class="field">
+      <label>Google Maps API Key</label>
+      <input type="text" id="gmKey" placeholder="AIza…">
+      <div class="field-hint">Enable "Maps JavaScript API" in Google Cloud Console</div>
+    </div>
+    <div class="field">
+      <label>Anthropic API Key</label>
+      <input type="text" id="akKey" placeholder="sk-ant-…">
+      <div class="field-hint">From console.anthropic.com → API Keys</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveKeys()">Save & Apply</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Keys ─────────────────────────────────────────────────────────
+const GK = () => localStorage.getItem('locus_gm') || '';
+const AK = () => localStorage.getItem('locus_ak') || '';
+
+// ── State ─────────────────────────────────────────────────────────
+let panorama, searchBox, geocoder;
+let selected   = null;   // { name, lat, lng }
+let storyLen   = 'medium';
+let pinMode    = false;
+let story      = '';
+let isPlaying  = false;
+let utterance  = null;
+let spStart    = 0;
+let estDur     = 0;
+let progTimer  = null;
+let sheetOpen  = false;
+
+// ── Modal ─────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('gmKey').value = GK();
+  document.getElementById('akKey').value = AK();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+function saveKeys() {
+  const gk = document.getElementById('gmKey').value.trim();
+  const ak = document.getElementById('akKey').value.trim();
+  if (gk) localStorage.setItem('locus_gm', gk);
+  if (ak) localStorage.setItem('locus_ak', ak);
+  closeModal();
+  if (gk && !window.google) location.reload();
+}
+
+// ── Maps init ─────────────────────────────────────────────────────
+window.initMap = function() {
+  geocoder = new google.maps.Geocoder();
+
+  // Invisible map div for search
+  const ghost = document.createElement('div');
+  ghost.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden';
+  document.body.appendChild(ghost);
+  const map = new google.maps.Map(ghost, { center:{lat:51.5,lng:-0.12}, zoom:14 });
+
+  // Street View panorama
+  panorama = new google.maps.StreetViewPanorama(
+    document.getElementById('streetView'), {
+      addressControl: false, fullscreenControl: false,
+      motionTracking: false, motionTrackingControl: false,
+      showRoadLabels: true, clickToGo: true,
+      panControl: true, zoomControl: false,
+    }
+  );
+
+  // Search box
+  const input = document.getElementById('searchInput');
+  searchBox = new google.maps.places.SearchBox(input);
+  map.addListener('bounds_changed', () => searchBox.setBounds(map.getBounds()));
+  searchBox.addListener('places_changed', () => {
+    const places = searchBox.getPlaces();
+    if (!places || !places.length) return;
+    const p = places[0];
+    if (!p.geometry) return;
+    goTo(p.geometry.location.lat(), p.geometry.location.lng(), p.name || p.formatted_address || 'Selected place');
+  });
+
+  // Update splash
+  document.getElementById('orbText').textContent = 'Search a place to begin your journey';
+  document.getElementById('splashNotice').textContent = '';
+};
+
+window.mapsError = function() {
+  document.getElementById('orbText').textContent = 'Maps failed to load';
+  document.getElementById('splashNotice').innerHTML = 'Check your Google Maps API key in ⚙ Settings<br>and make sure Maps JavaScript API is enabled';
+};
+
+function triggerSearch() {
+  const ev = new KeyboardEvent('keydown', { keyCode: 13, which: 13, bubbles: true });
+  document.getElementById('searchInput').dispatchEvent(ev);
+}
+
+function goTo(lat, lng, name) {
+  const sv = new google.maps.StreetViewService();
+  sv.getPanorama({ location: {lat, lng}, radius: 200, preference: 'nearest' }, (data, status) => {
+    if (status === google.maps.StreetViewStatus.OK) {
+      panorama.setPano(data.location.pano);
+      // Compute heading toward clicked point
+      const pLat = data.location.latLng.lat();
+      const pLng = data.location.latLng.lng();
+      const dLng = (lng - pLng) * Math.PI / 180;
+      const y = Math.sin(dLng) * Math.cos(lat * Math.PI / 180);
+      const x = Math.cos(pLat * Math.PI / 180) * Math.sin(lat * Math.PI / 180)
+              - Math.sin(pLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) * Math.cos(dLng);
+      const heading = Math.atan2(y, x) * 180 / Math.PI;
+      panorama.setPov({ heading, pitch: 0, zoom: 1 });
+      panorama.setVisible(true);
+      hideSplash();
+    } else {
+      document.getElementById('orbText').textContent = 'No Street View here — try a nearby spot';
+      showSplash();
+    }
+    selected = { name, lat, lng };
+    enableGenerate();
+  });
+}
+
+function hideSplash() {
+  document.getElementById('splash').classList.add('hidden');
+}
+function showSplash() {
+  document.getElementById('splash').classList.remove('hidden');
+}
+
+function useMyLocation() {
+  if (!window.google || !navigator.geolocation) return;
+  document.getElementById('locBtn').classList.add('active');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      geocoder.geocode({ location: {lat, lng} }, (results, status) => {
+        document.getElementById('locBtn').classList.remove('active');
+        const name = (status === 'OK' && results[0])
+          ? results[0].formatted_address
+          : `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        goTo(lat, lng, name);
+      });
+    },
+    () => document.getElementById('locBtn').classList.remove('active')
+  );
+}
+
+function togglePinMode() {
+  if (!window.google || !panorama) return;
+  pinMode = !pinMode;
+  document.getElementById('pinBtn').classList.toggle('active', pinMode);
+  document.getElementById('cursorHint').classList.toggle('visible', pinMode);
+  if (pinMode) {
+    panorama.addListener('click', onPanoClick);
+  } else {
+    google.maps.event.clearListeners(panorama, 'click');
+  }
+}
+
+function onPanoClick(e) {
+  if (!e || !e.latLng) return;
+  const lat = e.latLng.lat(), lng = e.latLng.lng();
+  geocoder.geocode({ location: {lat, lng} }, (results, status) => {
+    const name = (status === 'OK' && results[0]) ? results[0].formatted_address : `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    selected = { name, lat, lng };
+    enableGenerate();
+  });
+  togglePinMode();
+}
+
+// ── Length ────────────────────────────────────────────────────────
+function setLength(l) {
+  storyLen = l;
+  document.querySelectorAll('.len-tab').forEach(b => b.classList.toggle('active', b.dataset.len === l));
+}
+
+function enableGenerate() {
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = false;
+  document.getElementById('btnLabel').textContent = 'Tell the story';
+}
+
+// ── Generate ──────────────────────────────────────────────────────
+async function generateStory() {
+  if (!selected) return;
+  if (!AK()) { openModal(); return; }
+
+  stopSpeech();
+  setGenerating(true);
+  openSheet(true);
+
+  const words = { short: 200, medium: 550, long: 1400 }[storyLen];
+
+  const prompt = `You are a master narrative storyteller specialising in the hidden human histories of places. You write in the tradition of great narrative nonfiction — gripping, vivid, emotionally resonant. Your prose is literary but warm, never academic.
+
+Location: "${selected.name}"
+
+Write a compelling story about the human history of this specific place. Follow these principles:
+
+1. HOOK: Open mid-scene — a specific moment, a named character, a sensory detail. Never open with geography or generic history.
+2. CHARACTER: Real or plausibly real people with names, motivations, and inner lives. We must feel something for them.
+3. TENSION: Something is at stake — ambition, love, survival, betrayal, loss. The story builds.
+4. REVELATION: Something surprising most people walking past would never know.
+5. RESONANCE: End connecting past to present — a detail, lingering question, the weight of time.
+6. PROSE: Flowing literary paragraphs. Specific and concrete. Think Erik Larson meets Robert Macfarlane.
+7. LENGTH: Approximately ${words} words.
+
+Write only the story. No title. No preamble. Begin immediately with the opening scene.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': AK(),
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error?.message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    story = data.content?.[0]?.text || '';
+    renderStory(story);
+  } catch(err) {
+    document.getElementById('sheetBody').innerHTML =
+      `<div class="story-error">Error: ${err.message}</div>`;
+  } finally {
+    setGenerating(false);
+  }
+}
+
+function renderStory(text) {
+  const paras = text.split(/\n\n+/).filter(p => p.trim()).map(p => `<p>${p.trim()}</p>`).join('');
+  document.getElementById('sheetBody').innerHTML = `<div class="story-prose">${paras}</div>`;
+  document.getElementById('sheetName').textContent = selected.name;
+  if (selected.lat) document.getElementById('sheetCoords').textContent =
+    `${selected.lat.toFixed(5)}, ${selected.lng.toFixed(5)}`;
+  document.getElementById('miniTitle').textContent = selected.name;
+  const wc = text.split(/\s+/).length;
+  estDur = Math.round((wc / 150) * 60);
+  document.getElementById('timeDur').textContent = fmt(estDur);
+}
+
+function setGenerating(on) {
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = on;
+  btn.classList.toggle('loading', on);
+  document.getElementById('btnLabel').textContent = on ? 'Uncovering…' : 'Tell the story';
+  if (on) {
+    document.getElementById('sheetBody').innerHTML = `<div class="story-loading"><div class="loading-ring"></div><div class="loading-text">Uncovering the story of this place…</div></div>`;
+    document.getElementById('sheetName').textContent = selected.name;
+    document.getElementById('sheetCoords').textContent = '';
+  }
+}
+
+// ── Sheet ─────────────────────────────────────────────────────────
+function openSheet(gen) {
+  sheetOpen = true;
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('storyTrigger').classList.add('hidden');
+  if (!gen && selected) document.getElementById('sheetName').textContent = selected.name;
+}
+function closeSheet() {
+  sheetOpen = false;
+  document.getElementById('sheetOverlay').classList.remove('open');
+  document.getElementById('storyTrigger').classList.remove('hidden');
+  syncMini();
+}
+document.getElementById('sheetOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeSheet(); });
+
+// ── Speech ────────────────────────────────────────────────────────
+function toggleSpeech() { isPlaying ? pauseSpeech() : startSpeech(); }
+
+function startSpeech() {
+  if (!story || !window.speechSynthesis) return;
+  if (utterance && window.speechSynthesis.paused) {
+    window.speechSynthesis.resume();
+    isPlaying = true; setPlay(true); resumeProg(); return;
+  }
+  window.speechSynthesis.cancel();
+  utterance = new SpeechSynthesisUtterance(story);
+  utterance.rate = 0.92; utterance.pitch = 1.0;
+  const vs = window.speechSynthesis.getVoices();
+  const v = vs.find(v => v.name.includes('Daniel') || v.name.includes('Samantha') || v.lang === 'en-GB')
+         || vs.find(v => v.lang.startsWith('en'));
+  if (v) utterance.voice = v;
+  utterance.onend = () => { isPlaying = false; setPlay(false); clearInterval(progTimer); setProg(0); };
+  window.speechSynthesis.speak(utterance);
+  isPlaying = true; spStart = Date.now(); setPlay(true); startProg();
+}
+function pauseSpeech() { window.speechSynthesis.pause(); isPlaying = false; setPlay(false); clearInterval(progTimer); }
+function stopSpeech() { window.speechSynthesis.cancel(); isPlaying = false; utterance = null; setPlay(false); clearInterval(progTimer); setProg(0); }
+function setPlay(p) {
+  document.getElementById('playBtn')?.classList.toggle('playing', p);
+  document.getElementById('miniPlayBtn')?.classList.toggle('playing', p);
+}
+function setProg(pct) {
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('miniProgFill').style.width = pct + '%';
+  document.getElementById('timeElapsed').textContent = fmt(Math.round((pct/100)*estDur));
+}
+function startProg() {
+  clearInterval(progTimer);
+  progTimer = setInterval(() => {
+    const e = (Date.now() - spStart) / 1000;
+    setProg(Math.min((e / estDur) * 100, 100));
+  }, 500);
+}
+function resumeProg() {
+  const cur = parseFloat(document.getElementById('progFill').style.width || '0');
+  spStart = Date.now() - ((cur/100) * estDur * 1000);
+  startProg();
+}
+function seekSpeech(e, track) {
+  if (!story || !estDur) return;
+  const r = track.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  stopSpeech();
+  utterance = new SpeechSynthesisUtterance(story.slice(Math.floor(pct * story.length)));
+  utterance.rate = 0.92;
+  const vs = window.speechSynthesis.getVoices();
+  const v = vs.find(v => v.lang.startsWith('en-GB')) || vs.find(v => v.lang.startsWith('en'));
+  if (v) utterance.voice = v;
+  utterance.onend = () => { isPlaying = false; setPlay(false); clearInterval(progTimer); setProg(0); };
+  window.speechSynthesis.speak(utterance);
+  isPlaying = true; spStart = Date.now() - (pct * estDur * 1000);
+  estDur = estDur * (1 - pct); setPlay(true); startProg();
+}
+function syncMini() {
+  document.getElementById('miniPlayer').classList.toggle('visible', isPlaying && !sheetOpen);
+}
+function fmt(s) { s = Math.max(0, Math.round(s)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+
+// ── Load Maps ─────────────────────────────────────────────────────
+function loadMaps() {
+  const key = GK();
+  if (!key) {
+    document.getElementById('splashNotice').innerHTML = 'Add your API keys to get started';
+    openModal();
+    return;
+  }
+  const s = document.createElement('script');
+  s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&callback=initMap&onerror=mapsError`;
+  s.async = true;
+  s.onerror = window.mapsError;
+  document.head.appendChild(s);
+}
+
+// ── Boot ──────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  }
+  loadMaps();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('modalOverlay').classList.contains('open')) closeModal();
+    else if (sheetOpen) closeSheet();
+  }
+});
+setInterval(syncMini, 800);
+</script>
+</body>
+</html>
