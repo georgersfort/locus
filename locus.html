@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Locus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Hanken+Grotesk:wght@300;400;500&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #080807;
+  --panel: #0e0d0b;
+  --gold: #C9A96E;
+  --gold-dim: rgba(201,169,110,0.15);
+  --gold-mid: rgba(201,169,110,0.5);
+  --white: #F5F0E8;
+  --w80: rgba(245,240,232,0.8);
+  --w50: rgba(245,240,232,0.5);
+  --w20: rgba(245,240,232,0.18);
+  --w10: rgba(245,240,232,0.07);
+  --w05: rgba(245,240,232,0.04);
+  --panel-border: rgba(245,240,232,0.06);
+}
+
+html, body {
+  height: 100%; width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: 'Hanken Grotesk', sans-serif;
+  color: var(--white);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ══════════════════════════════
+   TOP BAR
+══════════════════════════════ */
+.top-bar {
+  flex-shrink: 0;
+  height: 52px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  z-index: 10;
+}
+.logo {
+  font-family: 'Cormorant', serif;
+  font-size: 20px; font-weight: 400; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--white);
+  display: flex; align-items: center; gap: 10px;
+}
+.logo-pip { width: 5px; height: 5px; background: var(--gold); border-radius: 50%; }
+.top-right { display: flex; align-items: center; gap: 8px; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: var(--w05); border: 1px solid var(--w10);
+  color: var(--w50); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.icon-btn:hover { border-color: var(--gold-mid); color: var(--gold); }
+
+/* ══════════════════════════════
+   STREET VIEW — takes remaining top space
+══════════════════════════════ */
+.sv-zone {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #0a0908;
+  min-height: 0;
+}
+#sat-wrap, #sv-wrap {
+  position: absolute; inset: 0;
+  transition: opacity 0.8s ease;
+}
+#sat-wrap.fading, #sv-wrap.fading { opacity: 0; }
+#sat-frame, #sv-frame { width: 100%; height: 100%; border: none; display: block; }
+
+.view-toggles {
+  position: absolute; top: 12px; right: 12px; z-index: 3;
+  display: flex; gap: 5px;
+  opacity: 0; transition: opacity 0.4s;
+}
+.view-toggles.visible { opacity: 1; }
+.view-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 11px; border-radius: 20px;
+  background: rgba(10,9,8,0.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(245,240,232,0.15); color: rgba(245,240,232,0.55);
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.04em;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.view-btn.active { border-color: var(--gold-mid); color: var(--gold); background: rgba(10,9,8,0.85); }
+.view-btn:not(.active):hover { color: var(--white); border-color: rgba(245,240,232,0.3); }
+
+/* Location name overlay on Street View */
+.sv-label {
+  position: absolute; top: 16px; left: 0; right: 0;
+  text-align: center; pointer-events: none; z-index: 2;
+  opacity: 0; transition: opacity 0.6s;
+}
+.sv-label.visible { opacity: 1; }
+.sv-place-name {
+  font-family: 'Cormorant', serif;
+  font-size: clamp(16px, 2.5vw, 26px);
+  font-weight: 300; font-style: italic;
+  color: var(--white); letter-spacing: 0.04em;
+  text-shadow: 0 2px 16px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.6);
+}
+.sv-place-loc {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--gold); margin-top: 4px;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.9);
+}
+
+/* Loading spinner over SV */
+.sv-loading {
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  background: rgba(8,8,7,0.7);
+  opacity: 0; pointer-events: none; transition: opacity 0.4s;
+}
+.sv-loading.visible { opacity: 1; pointer-events: all; }
+.spin-ring {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 1.5px solid var(--w20); border-top-color: var(--gold);
+  animation: spin 1.3s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin-text {
+  font-family: 'Cormorant', serif; font-style: italic;
+  font-size: 15px; color: var(--w50); letter-spacing: 0.06em;
+}
+
+/* ══════════════════════════════
+   CONTROL PANEL — solid section below SV
+══════════════════════════════ */
+.control-panel {
+  flex-shrink: 0;
+  background: var(--panel);
+  border-top: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Row 1: controls bar (length + theme + photos) */
+.controls-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px 0;
+}
+.len-group {
+  display: flex; gap: 2px;
+  background: var(--w05); border: 1px solid var(--w10);
+  border-radius: 8px; padding: 3px;
+}
+.len-btn {
+  padding: 4px 10px; border-radius: 6px; border: none;
+  background: transparent; color: var(--w50);
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.04em;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.len-btn.active { background: var(--gold-dim); color: var(--gold); }
+.len-btn:not(.active):hover { color: var(--white); }
+
+.theme-select {
+  flex: 1;
+  background: var(--w05); border: 1px solid var(--w10);
+  border-radius: 8px; padding: 6px 28px 6px 10px;
+  color: var(--w50); font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.04em; cursor: pointer; outline: none;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(245,240,232,0.25)' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+  background-color: var(--w05);
+}
+.theme-select option { background: #141310; color: var(--white); }
+.theme-select:focus { border-color: var(--gold-mid); color: var(--white); }
+
+.photos-btn {
+  flex-shrink: 0;
+  padding: 6px 12px; border-radius: 8px;
+  background: var(--w05); border: 1px solid var(--w10);
+  color: var(--w50); font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.04em; cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity 0.4s, border-color 0.2s, color 0.2s;
+}
+.photos-btn.ready { opacity: 1; pointer-events: all; }
+.photos-btn:hover { border-color: var(--gold-mid); color: var(--gold); }
+
+/* Row 2: audio player */
+.player-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px;
+  opacity: 0; transition: opacity 0.5s;
+}
+.player-row.visible { opacity: 1; }
+.play-btn {
+  width: 38px; height: 38px; flex-shrink: 0;
+  border-radius: 50%; background: var(--white); border: none;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--bg); transition: all 0.2s;
+}
+.play-btn:hover { background: var(--gold); transform: scale(1.05); }
+.play-btn .icon-pause { display: none; }
+.play-btn.playing .icon-play { display: none; }
+.play-btn.playing .icon-pause { display: block; }
+.player-mid { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.player-title {
+  font-family: 'Cormorant', serif; font-size: 14px; font-style: italic;
+  color: var(--w80); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.prog-track {
+  height: 2px; background: var(--w20); border-radius: 1px; cursor: pointer;
+}
+.prog-fill {
+  height: 100%; background: var(--gold); border-radius: 1px;
+  width: 0%; transition: width 0.5s linear;
+}
+.player-time {
+  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--w50);
+  display: flex; justify-content: space-between;
+}
+.read-btn {
+  flex-shrink: 0; padding: 7px 12px; border-radius: 8px;
+  background: var(--w05); border: 1px solid var(--w10);
+  color: var(--w50); font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.04em; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.read-btn:hover { border-color: var(--gold-mid); color: var(--gold); }
+
+/* Row 3: next location cards */
+.cards-row {
+  display: flex; gap: 8px; padding: 0 16px 14px;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 0.5s 0.15s, transform 0.5s 0.15s;
+}
+.cards-row.visible { opacity: 1; transform: translateY(0); }
+.next-card {
+  flex: 1; min-width: 0;
+  background: var(--w05); border: 1px solid var(--w10);
+  border-radius: 12px; padding: 11px 12px 24px;
+  cursor: pointer; transition: all 0.22s;
+  display: flex; flex-direction: column; gap: 4px;
+  position: relative; overflow: hidden;
+}
+.next-card::after {
+  content: '↗'; position: absolute; bottom: 8px; right: 10px;
+  font-size: 12px; color: var(--w20); transition: all 0.2s;
+}
+.next-card:hover { border-color: var(--gold-mid); background: var(--gold-dim); }
+.next-card:hover::after { color: var(--gold); transform: translate(1px, -1px); }
+.card-conn {
+  font-family: 'DM Mono', monospace; font-size: 8px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); line-height: 1.3;
+}
+.card-name {
+  font-family: 'Cormorant', serif; font-size: 13px; font-weight: 400;
+  color: var(--white); line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-loc {
+  font-size: 10px; color: var(--w50);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ══════════════════════════════
+   PHOTOS LIGHTBOX
+══════════════════════════════ */
+.photos-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,0.92);
+  display: flex; flex-direction: column;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.photos-overlay.open { opacity: 1; pointer-events: all; }
+
+.photos-header {
+  flex-shrink: 0; padding: 16px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--w10);
+}
+.photos-title {
+  font-family: 'Cormorant', serif; font-size: 18px; font-style: italic; color: var(--white);
+}
+.photos-close {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--w10); border: none; color: var(--w50);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.photos-close:hover { background: var(--w20); color: var(--white); }
+
+.photos-grid {
+  flex: 1; overflow-y: auto; padding: 20px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
+  align-content: start;
+}
+.photos-grid::-webkit-scrollbar { width: 3px; }
+.photos-grid::-webkit-scrollbar-thumb { background: var(--w20); border-radius: 2px; }
+
+.photo-card {
+  border-radius: 10px; overflow: hidden;
+  background: var(--w05); border: 1px solid var(--w10);
+  cursor: pointer; transition: transform 0.2s, border-color 0.2s;
+  display: flex; flex-direction: column;
+}
+.photo-card:hover { transform: scale(1.02); border-color: var(--gold-mid); }
+.photo-card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+.photo-caption {
+  padding: 8px 10px;
+  font-size: 10px; color: var(--w50); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.photo-attr {
+  padding: 0 10px 8px;
+  font-family: 'DM Mono', monospace; font-size: 9px; color: var(--w20);
+}
+
+.photos-loading {
+  flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+}
+.photos-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  font-family: 'Cormorant', serif; font-style: italic; font-size: 16px; color: var(--w50);
+}
+
+/* Full-image viewer */
+.img-viewer {
+  position: fixed; inset: 0; z-index: 400;
+  background: rgba(0,0,0,0.97);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  padding: 20px;
+}
+.img-viewer.open { opacity: 1; pointer-events: all; }
+.img-viewer img { max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 6px; }
+.img-viewer-caption { margin-top: 12px; font-size: 13px; color: var(--w50); text-align: center; max-width: 600px; line-height: 1.5; }
+.img-viewer-attr { margin-top: 4px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--w20); }
+.img-viewer-close {
+  position: absolute; top: 16px; right: 16px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--w10); border: none; color: var(--w50);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; font-size: 16px;
+}
+.img-viewer-close:hover { background: var(--w20); color: var(--white); }
+
+/* ══════════════════════════════
+   STORY READ SHEET
+══════════════════════════════ */
+.story-sheet {
+  position: fixed; inset: 0; z-index: 200; pointer-events: none;
+}
+.story-sheet.open { pointer-events: all; }
+.sheet-backdrop {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.55);
+  opacity: 0; transition: opacity 0.35s; cursor: pointer;
+}
+.story-sheet.open .sheet-backdrop { opacity: 1; }
+.sheet-panel {
+  position: absolute; bottom: 0; left: 0; right: 0; max-height: 80vh;
+  background: rgba(10,9,8,0.97); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--w10); border-radius: 18px 18px 0 0;
+  display: flex; flex-direction: column;
+  transform: translateY(100%); transition: transform 0.42s cubic-bezier(0.32,0.72,0,1);
+  box-shadow: 0 -12px 48px rgba(0,0,0,0.7);
+}
+.story-sheet.open .sheet-panel { transform: translateY(0); }
+.sheet-handle { width: 32px; height: 3px; background: var(--w20); border-radius: 2px; margin: 12px auto 0; flex-shrink: 0; }
+.sheet-hdr {
+  padding: 14px 20px 12px; border-bottom: 1px solid var(--w10);
+  flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+}
+.sheet-title { font-family: 'Cormorant', serif; font-size: 18px; font-style: italic; color: var(--white); }
+.sheet-x {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--w10); border: none; color: var(--w50);
+  cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+}
+.sheet-x:hover { background: var(--w20); color: var(--white); }
+.sheet-body { flex: 1; overflow-y: auto; padding: 22px 20px 48px; }
+.sheet-body::-webkit-scrollbar { width: 3px; }
+.sheet-body::-webkit-scrollbar-thumb { background: var(--w20); border-radius: 2px; }
+.story-prose {
+  font-family: 'Cormorant', serif; font-size: 17px; font-weight: 300;
+  line-height: 1.9; color: var(--w80);
+}
+.story-prose p { margin-bottom: 1.2em; }
+.story-prose p:first-child::first-letter {
+  font-size: 52px; line-height: 0.78; float: left;
+  margin-right: 8px; margin-top: 6px; color: var(--gold); font-style: italic;
+}
+
+/* ══════════════════════════════
+   SETTINGS MODAL
+══════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.82); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: #131210; border: 1px solid var(--w10);
+  border-radius: 16px; padding: 28px; width: 420px; max-width: 92vw;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.9);
+  transform: translateY(8px); transition: transform 0.25s;
+}
+.modal-overlay.open .modal { transform: none; }
+.modal-title { font-family: 'Cormorant', serif; font-size: 22px; margin-bottom: 4px; }
+.modal-sub { font-size: 12px; color: var(--w50); line-height: 1.6; margin-bottom: 20px; }
+.field { margin-bottom: 14px; }
+.field label {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--w50); display: block; margin-bottom: 6px;
+}
+.field input {
+  width: 100%; padding: 10px 12px;
+  background: var(--w05); border: 1px solid var(--w10);
+  border-radius: 8px; color: var(--white);
+  font-family: 'DM Mono', monospace; font-size: 12px; outline: none;
+  transition: border-color 0.2s;
+}
+.field input:focus { border-color: var(--gold-mid); }
+.field input::placeholder { color: rgba(245,240,232,0.18); }
+.field-hint { font-size: 11px; color: var(--gold-mid); margin-top: 4px; line-height: 1.4; }
+.voice-row { display: flex; gap: 8px; margin-top: 4px; }
+.voice-btn {
+  flex: 1; padding: 8px; border-radius: 8px;
+  background: var(--w05); border: 1px solid var(--w10);
+  color: var(--w50); font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.04em; cursor: pointer; transition: all 0.2s; text-align: center;
+}
+.voice-btn.active { background: var(--gold-dim); border-color: var(--gold-mid); color: var(--gold); }
+.voice-btn:not(.active):hover { border-color: var(--w20); color: var(--white); }
+.modal-actions { display: flex; gap: 8px; margin-top: 20px; }
+.btn-save {
+  flex: 1; padding: 11px; background: var(--white); color: var(--bg);
+  border: none; border-radius: 8px;
+  font-family: 'Hanken Grotesk', sans-serif; font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: background 0.2s;
+}
+.btn-save:hover { background: var(--gold); }
+.btn-cancel {
+  padding: 11px 18px; background: transparent; color: var(--w50);
+  border: 1px solid var(--w10); border-radius: 8px;
+  font-family: 'Hanken Grotesk', sans-serif; font-size: 14px;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn-cancel:hover { border-color: var(--w20); color: var(--white); }
+
+/* Transition flash */
+#transition {
+  position: fixed; inset: 0; z-index: 150;
+  background: var(--bg); opacity: 0; pointer-events: none; transition: opacity 0.5s;
+}
+#transition.active { opacity: 1; pointer-events: all; }
+
+.sources-block {
+  margin-top: 32px; padding-top: 20px;
+  border-top: 1px solid var(--w10);
+}
+.sources-label {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--gold); margin-bottom: 12px;
+}
+.source-item {
+  font-family: 'Hanken Grotesk', sans-serif; font-size: 12px;
+  color: var(--w50); line-height: 1.6; margin-bottom: 8px;
+  padding-left: 12px; border-left: 1px solid var(--w20);
+}
+
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="top-bar">
+  <div class="logo"><div class="logo-pip"></div>Locus</div>
+  <div class="top-right">
+    <button class="icon-btn" onclick="openModal()" title="Settings">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Visual zone: satellite primary, street view toggle -->
+<div class="sv-zone">
+  <!-- Satellite map (primary) -->
+  <div id="sat-wrap">
+    <iframe id="sat-frame" allowfullscreen referrerpolicy="origin"></iframe>
+  </div>
+  <!-- Street View (toggled) -->
+  <div id="sv-wrap" style="display:none">
+    <iframe id="sv-frame" allowfullscreen referrerpolicy="origin"></iframe>
+  </div>
+  <!-- Location label -->
+  <div class="sv-label" id="svLabel">
+    <div class="sv-place-name" id="svName"></div>
+    <div class="sv-place-loc" id="svLoc"></div>
+  </div>
+  <!-- View toggle buttons -->
+  <div class="view-toggles" id="viewToggles">
+    <button class="view-btn active" id="btnSat" onclick="setView('sat')">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      Satellite
+    </button>
+    <button class="view-btn" id="btnSv" onclick="setView('sv')">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16M16 6v16"/></svg>
+      Street View
+    </button>
+  </div>
+  <!-- Loading -->
+  <div class="sv-loading" id="svLoading">
+    <div class="spin-ring"></div>
+    <div class="spin-text" id="spinText">Finding the story of this place…</div>
+  </div>
+</div>
+
+<!-- Control panel -->
+<div class="control-panel">
+
+  <!-- Row 1: length + theme + photos -->
+  <div class="controls-row">
+    <div class="len-group">
+      <button class="len-btn" data-len="short" onclick="setLength('short')">Short</button>
+      <button class="len-btn active" data-len="medium" onclick="setLength('medium')">Medium</button>
+      <button class="len-btn" data-len="long" onclick="setLength('long')">Long</button>
+    </div>
+    <select class="theme-select" id="themeSelect">
+      <option value="">Any theme</option>
+      <option value="music">Music & Sound</option>
+      <option value="art">Art & Creativity</option>
+      <option value="politics">Power & Politics</option>
+      <option value="architecture">Architecture & Design</option>
+      <option value="crime">Crime & Justice</option>
+      <option value="love">Love & Scandal</option>
+      <option value="war">War & Conflict</option>
+      <option value="science">Science & Discovery</option>
+      <option value="religion">Faith & Belief</option>
+      <option value="sport">Sport & Competition</option>
+      <option value="film">Film & Theatre</option>
+      <option value="revolution">Revolution & Protest</option>
+    </select>
+    <button class="photos-btn" id="photosBtn" onclick="openPhotos()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      Photos
+    </button>
+  </div>
+
+  <!-- Row 2: player -->
+  <div class="player-row" id="playerRow">
+    <button class="play-btn" id="playBtn" onclick="toggleSpeech()">
+      <svg class="icon-play" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      <svg class="icon-pause" width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+    </button>
+    <div class="player-mid">
+      <div class="player-title" id="playerTitle">—</div>
+      <div class="prog-track" onclick="seekSpeech(event, this)">
+        <div class="prog-fill" id="progFill"></div>
+      </div>
+      <div class="player-time"><span id="elapsed">0:00</span><span id="duration">—</span></div>
+    </div>
+    <button class="read-btn" onclick="openSheet()">Read</button>
+  </div>
+
+  <!-- Row 3: next cards -->
+  <div class="cards-row" id="cardsRow">
+    <div class="next-card" onclick="goToNext(0)">
+      <div class="card-conn" id="conn0"></div>
+      <div class="card-name" id="name0"></div>
+      <div class="card-loc" id="loc0"></div>
+    </div>
+    <div class="next-card" onclick="goToNext(1)">
+      <div class="card-conn" id="conn1"></div>
+      <div class="card-name" id="name1"></div>
+      <div class="card-loc" id="loc1"></div>
+    </div>
+    <div class="next-card" onclick="goToNext(2)">
+      <div class="card-conn" id="conn2"></div>
+      <div class="card-name" id="name2"></div>
+      <div class="card-loc" id="loc2"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Photos overlay -->
+<div class="photos-overlay" id="photosOverlay">
+  <div class="photos-header">
+    <div class="photos-title" id="photosTitle">Historical Photos</div>
+    <button class="photos-close" onclick="closePhotos()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="photos-loading" id="photosLoading">
+    <div class="spin-ring"></div>
+    <div class="spin-text">Searching archives…</div>
+  </div>
+  <div class="photos-grid" id="photosGrid" style="display:none"></div>
+  <div class="photos-empty" id="photosEmpty" style="display:none">No historical photos found for this location.</div>
+</div>
+
+<!-- Full image viewer -->
+<div class="img-viewer" id="imgViewer">
+  <button class="img-viewer-close" onclick="closeViewer()">✕</button>
+  <img id="viewerImg" src="" alt="">
+  <div class="img-viewer-caption" id="viewerCaption"></div>
+  <div class="img-viewer-attr" id="viewerAttr"></div>
+</div>
+
+<!-- Story read sheet -->
+<div class="story-sheet" id="storySheet">
+  <div class="sheet-backdrop" onclick="closeSheet()"></div>
+  <div class="sheet-panel">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hdr">
+      <div class="sheet-title" id="sheetTitle">—</div>
+      <button class="sheet-x" onclick="closeSheet()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body"><div class="story-prose" id="storyText"></div></div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title">Settings</div>
+    <div class="modal-sub">Keys are stored in this browser only, sent directly to their APIs.</div>
+    <div class="field">
+      <label>Google Maps API Key</label>
+      <input type="text" id="gmKey" placeholder="AIza…">
+      <div class="field-hint">Maps Embed API must be enabled</div>
+    </div>
+    <div class="field">
+      <label>Anthropic API Key</label>
+      <input type="text" id="akKey" placeholder="sk-ant-…">
+    </div>
+    <div class="field">
+      <label>ElevenLabs API Key <span style="opacity:0.5;font-size:10px;letter-spacing:0;text-transform:none">(optional)</span></label>
+      <input type="text" id="elKey" placeholder="sk_…">
+      <div class="field-hint">Paid plan required for commercial use</div>
+    </div>
+    <div class="field">
+      <label>Narration Voice</label>
+      <div class="voice-row">
+        <button class="voice-btn" id="vBrowser" onclick="setVoice('browser')">Browser (free)</button>
+        <button class="voice-btn active" id="vEl" onclick="setVoice('elevenlabs')">ElevenLabs</button>
+      </div>
+    </div>
+    <div class="field" id="voiceIdField">
+      <label>ElevenLabs Voice ID <span style="opacity:0.5;font-size:10px;letter-spacing:0;text-transform:none">(optional — defaults to George)</span></label>
+      <input type="text" id="vidKey" placeholder="e.g. JBFqnCBsd6RMkjVDRZzb">
+      <div class="field-hint">Optional: paste a specific Voice ID to always use that voice. Leave blank to rotate between narrator voices automatically.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveKeys()">Save & Restart</button>
+    </div>
+  </div>
+</div>
+
+<!-- Transition flash -->
+<div id="transition"></div>
+
+<script>
+// ── Keys & config ─────────────────────────────────────────────────
+const GK  = () => localStorage.getItem('locus_gm') || '';
+const AK  = () => localStorage.getItem('locus_ak') || '';
+const ELK = () => localStorage.getItem('locus_el') || '';
+const VOICE = () => localStorage.getItem('locus_voice') || 'elevenlabs';
+// Custom narrator voice pool
+const VOICE_POOL = [
+  { name: 'Jimmy',    id: 'aOmFKMyAYHuLFI6yUbvi' }, // young East Londoner
+  { name: 'Caleb',    id: 'Z3NU9evonFZga0vo4Sko' }, // Jamaican male, 50s
+  { name: 'Christos', id: 'JVIzCkpePulWUXlzNCt7' }, // Greek male, 30s
+  { name: 'Marianna', id: 'ditW33LEgJBH0CDwYAIK' }, // Polish female, 20s
+  { name: 'Henri',    id: 'BRTNYmJDNQJaOTWNdZ1E' }, // French male, 30s
+];
+
+let lastVoiceIdx = -1;
+let currentVoiceName = '';
+
+function pickVoice() {
+  const custom = localStorage.getItem('locus_vid');
+  if (custom) { currentVoiceName = 'Custom'; return custom; }
+  let idx;
+  do { idx = Math.floor(Math.random() * VOICE_POOL.length); }
+  while (VOICE_POOL.length > 1 && idx === lastVoiceIdx);
+  lastVoiceIdx = idx;
+  currentVoiceName = VOICE_POOL[idx].name;
+  return VOICE_POOL[idx].id;
+}
+
+async function fetchVoicePool() {
+  // No longer needed — using hardcoded pool
+}
+
+// ── Starting locations (chosen for human drama) ───────────────────
+const STARTS = [
+  { name: "The Eagle Pub", location: "Cambridge, England", lat: 52.2042, lng: 0.1189 },
+  { name: "Cleveland Avenue, Montgomery", location: "Alabama, USA", lat: 32.3668, lng: -86.3005 },
+  { name: "Los Alamos Laboratory", location: "New Mexico, USA", lat: 35.8814, lng: -106.2954 },
+  { name: "Palace of Justice, Pretoria", location: "South Africa", lat: -25.7459, lng: 28.1878 },
+  { name: "Broad Street Pump", location: "Soho, London, England", lat: 51.5133, lng: -0.1366 },
+  { name: "Latin Bridge", location: "Sarajevo, Bosnia", lat: 43.8582, lng: 18.4319 },
+  { name: "Schleißheimer Straße 34", location: "Munich, Germany", lat: 48.1549, lng: 11.5680 },
+  { name: "Down House", location: "Downe, Kent, England", lat: 51.3317, lng: 0.0607 },
+  { name: "Cromford Mill", location: "Derbyshire, England", lat: 53.1114, lng: -1.5563 },
+  { name: "Tattenham Corner, Epsom Racecourse", location: "Surrey, England", lat: 51.3201, lng: -0.2652 },
+  { name: "Café de Flore", location: "Saint-Germain-des-Prés, Paris, France", lat: 48.8539, lng: 2.3329 },
+  { name: "Cavendish Laboratory", location: "Cambridge, England", lat: 52.2135, lng: 0.1040 },
+  { name: "Lorraine Motel", location: "Memphis, Tennessee, USA", lat: 35.1344, lng: -90.0577 },
+  { name: "Palazzo della Cancelleria", location: "Rome, Italy", lat: 41.8964, lng: 12.4715 },
+  { name: "Hut 8, Bletchley Park", location: "Milton Keynes, England", lat: 51.9976, lng: -0.7406 },
+  { name: "Berggasse 19", location: "Vienna, Austria", lat: 48.2194, lng: 16.3585 },
+  { name: "HMS Victory, Portsmouth Historic Dockyard", location: "Portsmouth, England", lat: 50.7983, lng: -1.1094 },
+  { name: "Hotel Chelsea", location: "New York City, USA", lat: 40.7443, lng: -74.0003 },
+  { name: "Bornholmer Straße Checkpoint", location: "Berlin, Germany", lat: 52.5488, lng: 13.3882 },
+  { name: "Edmund Pettus Bridge", location: "Selma, Alabama, USA", lat: 32.4076, lng: -87.0211 },
+  { name: "Miła 18", location: "Warsaw, Poland", lat: 52.2502, lng: 20.9932 },
+  { name: "Stonewall Inn", location: "New York City, USA", lat: 40.7335, lng: -74.0027 },
+  { name: "Rue Vauquelin", location: "Paris, France", lat: 48.8447, lng: 2.3511 },
+  { name: "Liliesleaf Farm", location: "Rivonia, Johannesburg, South Africa", lat: -26.0595, lng: 28.0489 },
+  { name: "Villa Diodati", location: "Geneva, Switzerland", lat: 46.2318, lng: 6.1698 },
+  { name: "The Cavern Club", location: "Liverpool, England", lat: 53.4080, lng: -2.9916 },
+  { name: "Kramgasse 49", location: "Bern, Switzerland", lat: 46.9475, lng: 7.4481 },
+  { name: "Bhopal Union Carbide Plant", location: "Bhopal, India", lat: 23.2844, lng: 77.4119 },
+  { name: "Checkpoint Charlie", location: "Berlin, Germany", lat: 52.5075, lng: 13.3904 },
+  { name: "The Lorraine Motel", location: "Memphis, Tennessee, USA", lat: 35.1344, lng: -90.0577 },
+];
+
+// ── State ─────────────────────────────────────────────────────────
+let currentPlace = null;
+let nextPlaces   = [];
+let photoQueries = [];
+let storyFull    = '';
+let storyLen     = 'medium';
+let storyTheme   = '';
+let isPlaying    = false;
+let utterance    = null;
+let spStart      = 0;
+let estDur       = 0;
+let progTimer    = null;
+let photosCache  = [];
+let storySources = [];
+
+// ── Boot ──────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  if (!AK()) { openModal(); return; }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  }
+  const start = STARTS[Math.floor(Math.random() * STARTS.length)];
+  loadPlace(start);
+});
+
+// ── Load place ────────────────────────────────────────────────────
+function loadPlace(place) {
+  currentPlace = place;
+  storyFull = ''; photosCache = []; photoQueries = []; storySources = [];
+  stopSpeech();
+
+  // Reset UI
+  document.getElementById('playerRow').classList.remove('visible');
+  document.getElementById('cardsRow').classList.remove('visible');
+  document.getElementById('svLabel').classList.remove('visible');
+  document.getElementById('photosBtn').classList.remove('ready');
+  setProg(0);
+  showLoading('Finding the story of this place…');
+
+  // Load satellite view (primary)
+  const key = GK();
+  const satSrc = key
+    ? `https://www.google.com/maps/embed/v1/place?key=${key}&q=${place.lat},${place.lng}&zoom=18&maptype=satellite`
+    : '';
+  const svSrc = key
+    ? `https://www.google.com/maps/embed/v1/streetview?key=${key}&location=${place.lat},${place.lng}&heading=34&pitch=10&fov=80`
+    : '';
+  const satWrap = document.getElementById('sat-wrap');
+  const satFrame = document.getElementById('sat-frame');
+  const svFrame = document.getElementById('sv-frame');
+  satWrap.classList.add('fading');
+  setTimeout(() => {
+    if (satSrc) satFrame.src = satSrc;
+    if (svSrc) svFrame.src = svSrc; // preload street view in background
+    satWrap.classList.remove('fading');
+    document.getElementById('svName').textContent = place.name;
+    document.getElementById('svLoc').textContent  = place.location;
+    document.getElementById('svLabel').classList.add('visible');
+    document.getElementById('viewToggles').classList.add('visible');
+  }, 700);
+  // Reset to satellite view on new place
+  setView('sat', true);
+
+  generateStory(place);
+}
+
+// ── Generate ──────────────────────────────────────────────────────
+async function generateStory(place) {
+  const words = { short: 180, medium: 420, long: 950 }[storyLen] || 420;
+  const themeEl = document.getElementById('themeSelect');
+  const themeLabel = themeEl.options[themeEl.selectedIndex].text;
+  const themeInstr = storyTheme
+    ? `Focus specifically on the ${themeLabel} angle of this place's history.`
+    : '';
+
+  const prompt = `You are a historian and master narrative storyteller. Return ONLY valid JSON — no markdown, no explanation, nothing else.
+
+Place: "${place.name}", ${place.location}
+${themeInstr ? 'Theme focus: ' + themeInstr : ''}
+
+Before writing, identify: (a) the single most dramatic real human moment connected to this place, (b) one person at the centre of it, (c) the emotional shape of their experience — what went wrong, what was at stake, how it resolved.
+
+Then write the story from that. Every time you write for Locus, the outward form must feel completely different — sometimes it opens with dialogue, sometimes with a sound, sometimes with a date and a body, sometimes with a question, sometimes in near-present tense, sometimes with a weather detail that means something. The narrative principles below are the invisible skeleton; the listener must never detect a formula.
+
+JSON structure — return exactly this, nothing else:
+{
+  "story": "${words}-word historically accurate narrative. This story must do two things simultaneously and with equal weight: (A) grip the listener narratively so they cannot stop listening, and (B) leave them genuinely knowing something real and significant they didn't know before. The learning IS the story — not decoration on top of it. A listener should finish and immediately want to tell someone what they just learned.
+
+INVISIBLE NARRATIVE PRINCIPLES — apply all, but vary the outward form every time so no formula is ever detectable:
+(1) OPEN IN EXTREMIS: drop into the most pressured real moment. A specific named person, specific time, facing something. Never the same kind of opening twice — sometimes a physical sensation, sometimes overheard speech, sometimes a single stark documented fact, sometimes the exact weather.
+(2) EMOTIONAL SHAPE — MAN IN A HOLE: fortune must move. Things get harder before they resolve, or a triumph contains a hidden cost. A flat emotional line loses people.
+(3) CHRONOLOGICAL PULL: tell it in the order it happened — this is natural suspense. Disguise it so it never feels like a timeline.
+(4) ONE REAL PERSON, FULLY HUMAN: one named historical figure at the centre. One documented physical detail about them. One thing they wanted, one thing they feared. We must feel something for them as a person, not a historical figure.
+(5) CONTEMPORANEOUS TEXTURE — THIS IS ESSENTIAL: situate the listener viscerally in the historical moment. Not just the year — what was the world doing that same week or month? What did people believe that we now know to be wrong? What did the street outside look like, smell like, cost? What technology did they have or lack that shaped what was possible? This texture is what makes the past feel inhabited rather than described. It is also where real learning lives.
+(6) THE REVERSAL FACT: one true fact that changes the meaning of everything that came before it in the story — a revelation, a twist in the real record, something that reframes the whole picture. This is not a fun footnote — it is a structural turning point. It should be the moment the listener thinks 'I had no idea'. Place it at the peak of tension.
+(7) THIS SPECIFIC PLACE, RIGHT NOW: the listener is standing in Street View looking at this actual location. Make them feel it. Reference what they can see — the building, the street, the geography — and what it looked like then versus now. The most powerful learning is when a fact makes them see a familiar or ordinary place completely differently.
+(8) SENSORY GRANULARITY: one concrete sensory detail per scene. Not 'it was cold' but 'he could see his breath on the courtroom glass'.
+(9) RESONANT ENDING: not a summary. A lingering image or unanswered question that connects what happened then to what stands there now.
+(10) ALL FACTS TRUE AND VERIFIABLE: no invented dialogue presented as real. No composite characters. No embellishment beyond what the record supports. The literary quality comes from selection and arrangement of real facts, not from invention.
+(11) RESTRAINED PROSE — THIS IS IMPORTANT: use figurative language sparingly and only when it genuinely illuminates something that cannot be said plainly. Do not reach for metaphor or simile as decoration. Do not use rhetorical flourishes for their own sake. The best narrative nonfiction trusts the facts to do the emotional work — a plain sentence about a real event is almost always more powerful than an ornate one. Aim for clarity, precision and momentum. The prose should feel like a skilled journalist who also happens to write beautifully, not a novelist showing off.
+Prose style: vary completely — sometimes spare and taut, sometimes slightly richer. Always restrained. Always in service of the story.",
+  "next": [
+    {"connection": "3-4 word thematic link", "name": "specific site name", "location": "City, Country", "lat": 0.0, "lng": 0.0},
+    {"connection": "3-4 word thematic link", "name": "specific site name", "location": "City, Country", "lat": 0.0, "lng": 0.0},
+    {"connection": "3-4 word thematic link", "name": "specific site name", "location": "City, Country", "lat": 0.0, "lng": 0.0}
+  ],
+  "photoQueries": [
+    "specific Wikimedia Commons search query for the exact event or person in the story e.g. 'Rivonia Trial 1964 courtroom'",
+    "broader fallback e.g. 'Nelson Mandela 1960s South Africa'",
+    "third fallback e.g. 'apartheid protest Johannesburg'"
+  ],
+  "sources": [
+    "Author, Title (Year) — specific chapter or page if relevant",
+    "Author, Title (Year)",
+    "Author, Title (Year)"
+  ]
+}
+
+sources[] rules: list 2-4 real, verifiable sources — books, academic papers, or named archives — that contain the facts in this story. Only include sources you are genuinely confident exist. Do not invent citations. If a fact comes from a well-known primary source (a diary, a trial transcript, a newspaper of record) name it specifically. These will be shown to users as further reading.
+
+next[] rules: each connects to a DIFFERENT element of the story; real historical sites with street-level presence; span different countries where possible; accurate GPS coords.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': AK(),
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1800,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error?.message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    let raw = (data.content?.[0]?.text || '').replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
+    const parsed = JSON.parse(raw);
+
+    storyFull    = parsed.story        || '';
+    nextPlaces   = parsed.next         || [];
+    photoQueries = parsed.photoQueries || [];
+    storySources = parsed.sources      || [];
+
+    hideLoading();
+    renderStory();
+    geocodeAndRenderCards();
+
+  } catch(err) {
+    hideLoading();
+    document.getElementById('spinText').textContent = 'Error: ' + err.message;
+    document.getElementById('svLoading').classList.add('visible');
+  }
+}
+
+function renderStory() {
+  document.getElementById('playerTitle').textContent = currentPlace.name;
+  const wc = storyFull.split(/\s+/).length;
+  estDur = Math.round((wc / 145) * 60);
+  document.getElementById('duration').textContent = fmt(estDur);
+  document.getElementById('playerRow').classList.add('visible');
+
+  // Story text
+  const paras = storyFull.split(/\n\n+/).filter(p=>p.trim()).map(p=>`<p>${p.trim()}</p>`).join('');
+  const sourcesHtml = storySources.length
+    ? `<div class="sources-block"><div class="sources-label">Sources</div>${storySources.map(s=>`<div class="source-item">${s}</div>`).join('')}</div>`
+    : '';
+  document.getElementById('storyText').innerHTML = paras + sourcesHtml;
+  document.getElementById('sheetTitle').textContent = currentPlace.name;
+
+  // Photos button
+  if (photoQueries.length) document.getElementById('photosBtn').classList.add('ready');
+  document.getElementById('photosTitle').textContent = `Photos — ${currentPlace.name}`;
+}
+
+async function geocodeAndRenderCards() {
+  const key = GK();
+  const verified = await Promise.all(nextPlaces.map(async p => {
+    if (!key) return p;
+    try {
+      const q = encodeURIComponent(`${p.name}, ${p.location}`);
+      const r = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${key}`);
+      const d = await r.json();
+      if (d.status === 'OK' && d.results[0]) {
+        const l = d.results[0].geometry.location;
+        return { ...p, lat: l.lat, lng: l.lng };
+      }
+    } catch(e) {}
+    return p;
+  }));
+  nextPlaces = verified;
+  verified.forEach((p, i) => {
+    document.getElementById(`conn${i}`).textContent = p.connection || '';
+    document.getElementById(`name${i}`).textContent = p.name       || '';
+    document.getElementById(`loc${i}`).textContent  = p.location   || '';
+  });
+  document.getElementById('cardsRow').classList.add('visible');
+}
+
+// ── Navigate ──────────────────────────────────────────────────────
+function goToNext(i) {
+  const p = nextPlaces[i];
+  if (!p) return;
+  const overlay = document.getElementById('transition');
+  overlay.classList.add('active');
+  setTimeout(() => {
+    loadPlace(p);
+    setTimeout(() => overlay.classList.remove('active'), 500);
+  }, 500);
+}
+
+// ── Loading ───────────────────────────────────────────────────────
+function showLoading(msg) {
+  document.getElementById('spinText').textContent = msg;
+  document.getElementById('svLoading').classList.add('visible');
+}
+function hideLoading() {
+  document.getElementById('svLoading').classList.remove('visible');
+}
+
+// ── Photos ────────────────────────────────────────────────────────
+async function openPhotos() {
+  document.getElementById('photosOverlay').classList.add('open');
+  if (photosCache.length) { renderPhotos(photosCache); return; }
+
+  document.getElementById('photosLoading').style.display = 'flex';
+  document.getElementById('photosGrid').style.display    = 'none';
+  document.getElementById('photosEmpty').style.display   = 'none';
+
+  const photos = await fetchWikimediaPhotos(photoQueries);
+  photosCache = photos;
+
+  document.getElementById('photosLoading').style.display = 'none';
+  if (photos.length) renderPhotos(photos);
+  else document.getElementById('photosEmpty').style.display = 'flex';
+}
+
+async function fetchWikimediaPhotos(queries) {
+  const seen = new Set();
+  const results = [];
+
+  for (const query of queries) {
+    if (results.length >= 5) break;
+    try {
+      const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srnamespace=6&srlimit=8&srprop=snippet&format=json&origin=*`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const hits = data.query?.search || [];
+
+      for (const hit of hits) {
+        if (results.length >= 5) break;
+        const title = hit.title;
+        if (seen.has(title)) continue;
+
+        // Get image info
+        const infoUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=imageinfo&iiprop=url|extmetadata|size&iiurlwidth=600&format=json&origin=*`;
+        const infoRes = await fetch(infoUrl);
+        const infoData = await infoRes.json();
+        const pages = infoData.query?.pages || {};
+        const page = Object.values(pages)[0];
+        const ii = page?.imageinfo?.[0];
+        if (!ii || !ii.thumburl) continue;
+
+        // Check license — only free licenses
+        const license = ii.extmetadata?.LicenseShortName?.value || '';
+        const isFree = license.includes('CC') || license.includes('Public domain') || license.includes('PD');
+        if (!isFree) continue;
+
+        const caption = ii.extmetadata?.ImageDescription?.value?.replace(/<[^>]+>/g,'') || hit.snippet?.replace(/<[^>]+>/g,'') || title.replace('File:','');
+        const artist  = ii.extmetadata?.Artist?.value?.replace(/<[^>]+>/g,'') || '';
+
+        seen.add(title);
+        results.push({
+          thumb: ii.thumburl,
+          full: ii.url,
+          caption: caption.substring(0, 200),
+          license,
+          artist,
+          page: `https://commons.wikimedia.org/wiki/${encodeURIComponent(title)}`
+        });
+      }
+    } catch(e) {
+      console.warn('Wikimedia fetch failed for query:', query, e);
+    }
+  }
+  return results;
+}
+
+function renderPhotos(photos) {
+  const grid = document.getElementById('photosGrid');
+  grid.style.display = 'grid';
+  grid.innerHTML = photos.map((p, i) => `
+    <div class="photo-card" onclick="openViewer(${i})">
+      <img src="${p.thumb}" alt="${p.caption}" loading="lazy" onerror="this.closest('.photo-card').style.display='none'">
+      <div class="photo-caption">${p.caption}</div>
+      <div class="photo-attr">${p.license}${p.artist ? ' · ' + p.artist.substring(0,40) : ''}</div>
+    </div>
+  `).join('');
+}
+
+function openViewer(i) {
+  const p = photosCache[i];
+  if (!p) return;
+  document.getElementById('viewerImg').src = p.full || p.thumb;
+  document.getElementById('viewerCaption').textContent = p.caption;
+  document.getElementById('viewerAttr').innerHTML = `${p.license}${p.artist ? ' · ' + p.artist : ''} · <a href="${p.page}" target="_blank" style="color:var(--gold-mid)">Wikimedia Commons</a>`;
+  document.getElementById('imgViewer').classList.add('open');
+}
+function closeViewer() { document.getElementById('imgViewer').classList.remove('open'); }
+function closePhotos() { document.getElementById('photosOverlay').classList.remove('open'); }
+
+// ── Sheet ─────────────────────────────────────────────────────────
+function openSheet()  { document.getElementById('storySheet').classList.add('open'); }
+function closeSheet() { document.getElementById('storySheet').classList.remove('open'); }
+
+// ── Speech ────────────────────────────────────────────────────────
+function toggleSpeech() {
+  if (isPlaying) pauseSpeech();
+  else if (window._locusAudio?.paused) { window._locusAudio.play(); isPlaying=true; setPlay(true); resumeProg(); }
+  else startSpeech();
+}
+
+async function startSpeech() {
+  if (!storyFull) return;
+
+  const voiceEngine = VOICE();
+  const elKey = ELK();
+
+  if (voiceEngine === 'elevenlabs') {
+    if (!elKey) {
+      showToast('Add your ElevenLabs API key in Settings ⚙');
+      startSpeechBrowser();
+      return;
+    }
+    if (isPlaying) return;
+    setPlay(true); isPlaying = true;
+    showToast('Loading ElevenLabs audio…');
+    try {
+      const chosenVoiceId = pickVoice();
+      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${chosenVoiceId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'xi-api-key': elKey
+        },
+        body: JSON.stringify({
+          text: storyFull,
+          model_id: 'eleven_turbo_v2_5',
+          voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.0 }
+        })
+      });
+      if (!res.ok) {
+        const errBody = await res.text().catch(()=>'');
+        throw new Error(`ElevenLabs ${res.status}: ${errBody.substring(0,120)}`);
+      }
+      const blob = await res.blob();
+      const audio = new Audio(URL.createObjectURL(blob));
+      window._locusAudio = audio;
+      audio.onloadedmetadata = () => {
+        estDur = Math.round(audio.duration);
+        document.getElementById('duration').textContent = fmt(estDur);
+      };
+      audio.onended = () => { isPlaying=false; setPlay(false); setProg(100); clearInterval(progTimer); };
+      audio.onerror = (e) => { showToast('Audio playback error'); isPlaying=false; setPlay(false); };
+      await audio.play();
+      spStart = Date.now(); startProg();
+      showToast('');
+    } catch(err) {
+      console.error('ElevenLabs error:', err);
+      showToast('ElevenLabs error: ' + err.message.substring(0,80));
+      isPlaying=false; setPlay(false);
+    }
+    return;
+  }
+  startSpeechBrowser();
+}
+
+function showToast(msg, autoDismissMs) {
+  let t = document.getElementById('locus-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'locus-toast';
+    t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(10,9,8,0.92);border:1px solid rgba(201,169,110,0.4);color:rgba(245,240,232,0.8);font-family:DM Mono,monospace;font-size:11px;padding:8px 16px;border-radius:20px;z-index:999;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center';
+    document.body.appendChild(t);
+  }
+  if (!msg) { t.style.opacity='0'; return; }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  if (autoDismissMs) {
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.opacity = '0'; }, autoDismissMs);
+  }
+}
+
+function startSpeechBrowser() {
+  if (!window.speechSynthesis) return;
+  if (utterance && window.speechSynthesis.paused) { window.speechSynthesis.resume(); isPlaying=true; setPlay(true); resumeProg(); return; }
+  window.speechSynthesis.cancel();
+  utterance = new SpeechSynthesisUtterance(storyFull);
+  utterance.rate = 0.9;
+  const vs = window.speechSynthesis.getVoices();
+  const v = vs.find(v=>v.name.includes('Daniel')||v.name==='Google UK English Male') || vs.find(v=>v.lang==='en-GB') || vs.find(v=>v.lang.startsWith('en'));
+  if (v) utterance.voice = v;
+  utterance.onend = () => { isPlaying=false; setPlay(false); clearInterval(progTimer); setProg(100); };
+  window.speechSynthesis.speak(utterance);
+  isPlaying=true; spStart=Date.now(); setPlay(true); startProg();
+}
+
+function pauseSpeech() {
+  window._locusAudio?.pause() || window.speechSynthesis.pause();
+  isPlaying=false; setPlay(false); clearInterval(progTimer);
+}
+
+function stopSpeech() {
+  if (window._locusAudio) { window._locusAudio.pause(); window._locusAudio=null; }
+  window.speechSynthesis.cancel();
+  isPlaying=false; utterance=null; setPlay(false); clearInterval(progTimer); setProg(0);
+}
+
+function setPlay(p) { document.getElementById('playBtn').classList.toggle('playing', p); }
+function setProg(pct) {
+  document.getElementById('progFill').style.width = pct+'%';
+  document.getElementById('elapsed').textContent = fmt(Math.round((pct/100)*estDur));
+}
+function startProg() {
+  clearInterval(progTimer);
+  progTimer = setInterval(() => setProg(Math.min(((Date.now()-spStart)/1000/estDur)*100,100)), 500);
+}
+function resumeProg() {
+  const cur = parseFloat(document.getElementById('progFill').style.width||'0');
+  spStart = Date.now() - ((cur/100)*estDur*1000); startProg();
+}
+function seekSpeech(e, t) {
+  if (!storyFull||!estDur) return;
+  const r=t.getBoundingClientRect(), pct=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+  stopSpeech();
+  utterance = new SpeechSynthesisUtterance(storyFull.slice(Math.floor(pct*storyFull.length)));
+  utterance.rate=0.9;
+  const vs=window.speechSynthesis.getVoices(), v=vs.find(v=>v.lang==='en-GB')||vs.find(v=>v.lang.startsWith('en'));
+  if(v) utterance.voice=v;
+  utterance.onend=()=>{isPlaying=false;setPlay(false);clearInterval(progTimer);setProg(0);};
+  window.speechSynthesis.speak(utterance);
+  isPlaying=true; spStart=Date.now()-(pct*estDur*1000); estDur=estDur*(1-pct); setPlay(true); startProg();
+}
+function fmt(s) { s=Math.max(0,Math.round(s)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+
+// ── View toggle ──────────────────────────────────────────────────
+function setView(v, silent) {
+  const satWrap = document.getElementById('sat-wrap');
+  const svWrap  = document.getElementById('sv-wrap');
+  const btnSat  = document.getElementById('btnSat');
+  const btnSv   = document.getElementById('btnSv');
+  if (!satWrap) return;
+  if (v === 'sat') {
+    satWrap.style.display = 'block';
+    svWrap.style.display  = 'none';
+    btnSat?.classList.add('active');
+    btnSv?.classList.remove('active');
+  } else {
+    satWrap.style.display = 'none';
+    svWrap.style.display  = 'block';
+    btnSat?.classList.remove('active');
+    btnSv?.classList.add('active');
+  }
+}
+
+// ── Controls ──────────────────────────────────────────────────────
+function setLength(l) {
+  storyLen = l;
+  document.querySelectorAll('[data-len]').forEach(b=>b.classList.toggle('active', b.dataset.len===l));
+}
+document.getElementById('themeSelect').addEventListener('change', e => { storyTheme = e.target.value; });
+
+// ── Modal ─────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('gmKey').value = GK();
+  document.getElementById('akKey').value = AK();
+  document.getElementById('elKey').value = ELK();
+  document.getElementById('vidKey').value = localStorage.getItem('locus_vid') || '';
+  setVoice(VOICE(), true);
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+function saveKeys() {
+  const gk=document.getElementById('gmKey').value.trim();
+  const ak=document.getElementById('akKey').value.trim();
+  const ek=document.getElementById('elKey').value.trim();
+  if(gk) localStorage.setItem('locus_gm',gk);
+  if(ak) localStorage.setItem('locus_ak',ak);
+  if(ek) localStorage.setItem('locus_el',ek);
+  const vk = document.getElementById('vidKey').value.trim();
+  if(vk) localStorage.setItem('locus_vid',vk);
+  closeModal(); location.reload();
+}
+function setVoice(v, silent) {
+  if(!silent) localStorage.setItem('locus_voice', v);
+  document.getElementById('vBrowser')?.classList.toggle('active', v==='browser');
+  document.getElementById('vEl')?.classList.toggle('active', v==='elevenlabs');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') {
+    if (document.getElementById('imgViewer').classList.contains('open')) { closeViewer(); return; }
+    if (document.getElementById('photosOverlay').classList.contains('open')) { closePhotos(); return; }
+    if (document.getElementById('modalOverlay').classList.contains('open')) { closeModal(); return; }
+    closeSheet();
+  }
+});
+</script>
+</body>
+</html>
